@@ -16,7 +16,9 @@ packages <- c(
   "janitor", # for data cleaning
   "sf", #Spatial analysis 
   "sp", #Spatial analysis 
-  "rnaturalearth" # For maps
+  "rnaturalearth", # For maps
+  "doParallel",
+  "foreach"
 )
 
 my_lib(packages)
@@ -88,6 +90,8 @@ unique(sf_region$name)
   
 length(unique(sf_region$name))
 
+write_csv(sf_region %>% as.data.frame() %>% select(-geometry),
+      "../data/spatial/region_index.csv")
 
 # Visually make sure
 sf_region %>%  st_simplify(preserveTopology = TRUE, dTolerance = 1) %>% 
@@ -149,7 +153,7 @@ sau_catch %>%
 
 ```
 
-# Main analysis
+## Main analysis
 
 We projected the distribution of species using the DBEM coupled with three Earth System Models (ESMs) following two Shared Socioeconomic Pathways (SSPs); SSP 128 representing a low emission / high mitigation scenario and SSP 585 representing a high emission / no mitigation scenario. 
 
@@ -162,7 +166,7 @@ Where $MCP_f$ represents the future time periods (mid and end) and $MCP_p$ repre
 
 ```{r main_fx, eval = T, echo = T}
 
-mainfx <- function(){
+mainfx <- function(taxon_key){
 
 to_read <- paste0(taxon_key,"MCP.RData")
 
@@ -223,32 +227,77 @@ for(m in 1:6){
       }else{
         final_output <- bind_rows(final_output,final_data)
       }
+    
+    file_name <- paste0("/Users/juliano/Data/ocea_nutri_cc/results/",taxon_key,"_per_change.csv")
+    
+    write_csv(final_output,file_name)
+    
+  }else{
+    return(print(paste("something went wrong with",taxon_key,str_to_lower(str_sub(files_path[m],49,56)))))
     }
   }
-
-return(final_output)
 
 } # Close function
 
 ```
 
-## Control pannel
+### Control panel
 
-```{r}
+```{r protocol_control_panel, eval = F, echo = F}
 
-## GENERAL NEEDS
+# Get species list
+ssp_list <- read_csv("../data/species/project_spplist.csv")
 
-ssp_list <- read_csv("/data/species/project_spplist.csv")
+par_spp_list <- ssp_list %>% 
+  pull(taxon_key)
 
-# First get Vicky's data to get high seas
+# Get the regional grid 
+region_index <- read_csv("../data/spatial/region_index.csv")
+
+# Get list of index by EEZ
 eez_grid_id <- my_path("Spa","DBEM", "EEZ_CellID.xlsx", read = TRUE)
 colnames(eez_grid_id) <- c("eez_id","index")
 
-# Get the regional grid 
 regional_grid <- eez_grid_id %>% 
-  filter(eez_id %in% sf_region$eezid)
+  filter(eez_id %in% region_index$eezid)
 
+# Get the DBEM path
 files_path <- list.files("/Volumes/Enterprise/Data/dbem/dbem_cmip6/r_data",full.names = T)
+
+# Get ran species
+run_spp <- str_sub(list.files("/Users/juliano/Data/ocea_nutri_cc/results/",full.names = F),1,6)
+
+# Run error spp
+spp_to_run <- ssp_list %>% 
+  filter(!taxon_key %in% run_spp) %>% 
+  pull(taxon_key)
+
+for(i in 1:length(spp_to_run)){
+  mainfx(spp_to_run[i])
+}
+
+
+```
+
+### Run protocol (Parallel)
+
+```{r run_protocol, eval = F, echo = T}
+
+cores <- ifelse(detectCores() > 12, 12, detectCores()-3)  # get the cores from your computer. No need for more than 12 cores and never use all cores so you computer doesn't crash
+cl <- makeCluster(cores[1])
+registerDoParallel(cl)
+
+
+run <- foreach(i = 1:length(spp_to_run), .packages = "tidyverse") %dopar% {
+  mainfx(spp_to_run[i])
+}
+
+stopCluster(cl)
+gc()
+
+
+
+
 
 ```
 
