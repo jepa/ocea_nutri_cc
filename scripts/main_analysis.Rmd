@@ -167,76 +167,78 @@ Where $MCP_f$ represents the future time periods (mid and end) and $MCP_p$ repre
 ```{r main_fx, eval = T, echo = T}
 
 mainfx <- function(taxon_key){
-
-to_read <- paste0(taxon_key,"MCP.RData")
-
-for(m in 1:6){
   
-  #################################
-  # List esm folders
-  file_to_read <- paste0(files_path[m],"/",to_read)
-  if(file.exists(file_to_read)){
-    load(file_to_read)
+  to_read <- paste0(taxon_key,"MCP.RData")
+  
+  for(m in 1:6){
     
-    # Transform it to df
-    spp_data <- as.data.frame(sppMCPfnl) %>% 
-      rowid_to_column("index") %>% 
-      right_join(regional_grid,
-                 by = "index")
-    colnames(spp_data) <- c("index",(seq(1951,2100,1)),"eez_id")
-    rm(sppMCPfnl) # remove data for computing power
-    
-    # Estimate percentage change
-    final_data <- spp_data %>% 
-      gather("year","value",`1951`:`2100`) %>% 
-      mutate(
-        period = ifelse(year < 2014 & year > 1995,"present",
-                        ifelse(year >2041 & year <2060,"mid",
-                               ifelse(year > 2081,"end",NA
-                               )
-                        )
-        )
-      ) %>% 
-      filter(!is.na(period)) %>% 
-      group_by(eez_id,year,period) %>% 
-      # Sum total catch per eez per year
-      summarise(eez_catch = sum(value, na.rm = T)) %>% 
-      group_by(eez_id,period) %>% 
-      # Average yearly data
-      summarise(mean_catch = mean(eez_catch,na.rm = T)) %>% 
-      spread(period,mean_catch) %>% 
-      mutate(
-        per_change_mid = round((mid-present)/present*100),
-        per_change_end = round((end-present)/present*100)
-      ) %>% 
-      mutate(
-        taxon_key = taxon_key,
-        esm = ifelse(str_detect(files_path[m],"MPI"),"c6mpi", 
-                     str_to_lower(str_sub(files_path[m],49,54)
-                     )
-        ),
-        ssp = ifelse(str_detect(files_path[m],"MPI"),paste0("ssp",str_sub(files_path[m],54,55)), 
-                     paste0("ssp",str_sub(files_path[m],55,56))
-        )
-      ) %>% 
-      select(taxon_key,eez_id,esm,ssp,present,everything())
+    #################################
+    # List esm folders
+    file_to_read <- paste0(files_path[m],"/",to_read)
+    if(file.exists(file_to_read)){
+      load(file_to_read)
       
-    # Join data for all three models
-    if(m == 1){
-      final_output <- final_data
+      # Transform it to df
+      spp_data <- as.data.frame(sppMCPfnl) %>% 
+        rowid_to_column("index") %>% 
+        right_join(regional_grid,
+                   by = "index")
+      colnames(spp_data) <- c("index",(seq(1951,2100,1)),"eez_id")
+      rm(sppMCPfnl) # remove data for computing power
+      
+      # Estimate percentage change
+      final_data <- spp_data %>% 
+        gather("year","value",`1951`:`2100`) %>% 
+        mutate(
+          period = ifelse(year < 2014 & year > 1995,"present",
+                          ifelse(year >2041 & year <2060,"mid",
+                                 ifelse(year > 2081,"end",NA
+                                 )
+                          )
+          )
+        ) %>% 
+        filter(!is.na(period)) %>% 
+        group_by(eez_id,year,period) %>% 
+        # Sum total catch per eez per year
+        summarise(eez_catch = sum(value, na.rm = T),.groups = "drop") %>% 
+        group_by(eez_id,period) %>% 
+        # Average yearly data
+        summarise(mean_catch = mean(eez_catch,na.rm = T),.groups = "drop") %>% 
+        spread(period,mean_catch) %>% 
+        mutate(
+          per_change_mid = ifelse(present == 0 & mid > 0,100, round((mid-present)/present*100)),
+          # per_change_mid = round((mid-present)/present*100),
+          per_change_mid = ifelse(present == 0 & end > 0,100, round((end-present)/present*100)),
+          # per_change_end = round((end-present)/present*100)
+        ) %>% 
+        mutate(
+          taxon_key = taxon_key,
+          esm = ifelse(str_detect(files_path[m],"MPI"),"c6mpi", 
+                       str_to_lower(str_sub(files_path[m],49,54)
+                       )
+          ),
+          ssp = ifelse(str_detect(files_path[m],"MPI"),paste0("ssp",str_sub(files_path[m],54,55)), 
+                       paste0("ssp",str_sub(files_path[m],55,56))
+          )
+        ) %>% 
+        select(taxon_key,eez_id,esm,ssp,present,everything())
+      
+      # Join data for all three models
+      if(m == 1){
+        final_output <- final_data
       }else{
         final_output <- bind_rows(final_output,final_data)
       }
-    
-    file_name <- paste0("/Users/juliano/Data/ocea_nutri_cc/results/",taxon_key,"_per_change.csv")
-    
-    write_csv(final_output,file_name)
-    
-  }else{
-    return(print(paste("something went wrong with",taxon_key,str_to_lower(str_sub(files_path[m],49,56)))))
+      
+      file_name <- paste0("/Users/juliano/Data/ocea_nutri_cc/results/",taxon_key,"_per_change.csv")
+      
+      write_csv(final_output,file_name)
+      
+    }else{
+      return(print(paste("something went wrong with",taxon_key,str_to_lower(str_sub(files_path[m],49,56)))))
     }
   }
-
+  
 } # Close function
 
 ```
@@ -272,9 +274,6 @@ spp_to_run <- ssp_list %>%
   filter(!taxon_key %in% run_spp) %>% 
   pull(taxon_key)
 
-for(i in 1:length(spp_to_run)){
-  mainfx(spp_to_run[i])
-}
 
 
 ```
