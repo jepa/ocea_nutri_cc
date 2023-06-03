@@ -67,7 +67,11 @@ selected_countries <- c(
   "Malaysia (Sarawak)", # Yes
   "Philippines", # Yes
   "Australia", # Yes
-  "New Zealand" # Yes
+  "New Zealand", # Yes
+  "French Polynesia", # Yes
+  "Pitcairn (UK)", # Yes
+  "New Caledonia (France)", # Yes
+  "Wallis & Futuna Isl. (France)" # Yes 
 )
 
 
@@ -78,10 +82,10 @@ sf_sau_eez <- MyFunctions::my_sf("SAU") %>%
   clean_names()
 
 # Get EEZ names
-# sf_sau_eez %>% 
-#   as.data.frame() %>% 
-#   select(name) %>% 
-  # View()
+# sf_sau_eez %>%
+#   as.data.frame() %>%
+#   select(name) %>%
+# View()
 
 
 sf_region <-
@@ -93,7 +97,7 @@ unique(sf_region$name)
 length(unique(sf_region$name))
 
 # write_csv(sf_region %>% as.data.frame() %>% select(-geometry),
-#       "../data/spatial/region_index.csv")
+      # "../data/spatial/region_index.csv")
 
 # Visually make sure
 sf_region %>%  st_simplify(preserveTopology = TRUE, dTolerance = 1) %>% 
@@ -132,7 +136,7 @@ spp_list <- read.csv("/Volumes/Enterprise/Data/SAU/exploited_species_list.csv") 
          )
 
 # Species percentage 
-257/392
+# 257/392
 
 # Save complete list
 # write_csv(spp_list,"../data/species/project_spplist.csv")
@@ -157,7 +161,7 @@ sau_catch %>%
 
 ## Main analysis
 
-We projected the distribution of species using the DBEM coupled with three Earth System Models (ESMs) following two Shared Socioeconomic Pathways (SSPs); SSP 128 representing a low emission / high mitigation scenario and SSP 585 representing a high emission / no mitigation scenario. 
+We projected the distribution of species using the DBEM coupled with three Earth System Models (ESMs) following two Shared Socioeconomic Pathways (SSPs); SSP 126 representing a low emission / high mitigation scenario and SSP 585 representing a high emission / no mitigation scenario. 
 
 For each species, we projected its future maximum catch potential or "MCP" (a proxy of MSY) within each EEZ from 1951 to 2100. We then determined three time periods from which we estimate the percentage change in MCP. The present represent the average projections from 1995 to 2014 and match the historical data used by the ESMs. The mid of 21st century represents the average MCP projection from 2041 to 2060 and the end of the 21st century represent 2081 to 2100. These two future time periods were chosed to show a shorter and longer time frames affected by climate change. Finally, we estimate the percentage change in MCP ($\Delta{MCP}$) of mid and end of the 21st century relative the the present time frame as:
 
@@ -213,7 +217,7 @@ mainfx <- function(taxon_key){
           per_change_mid = ifelse(present == 0 & mid > 0,100, 
                                   round((mid-present)/present*100)),
           # per_change_mid = round((mid-present)/present*100),
-          per_change_mid = ifelse(present == 0 & end > 0,100, 
+          per_change_end = ifelse(present == 0 & end > 0,100, 
                                   round((end-present)/present*100)),
           # per_change_end = round((end-present)/present*100)
         ) %>% 
@@ -264,7 +268,7 @@ par_spp_list <- ssp_list %>%
   pull(taxon_key)
 
 # Get the regional grid 
-region_index <- read_csv("../data/spatial/region_index.csv")
+region_index <- read_csv("../data/spatial/region_index.csv") 
 
 # Get list of index by EEZ
 eez_grid_id <- my_path("Spa","DBEM", "EEZ_CellID.xlsx", read = TRUE)
@@ -283,7 +287,7 @@ run_spp <- str_sub(list.files("/Users/juliano/Data/ocea_nutri_cc/results/",
 
 # Run error spp
 spp_to_run <- ssp_list %>% 
-  filter(!taxon_key %in% run_spp) %>% 
+  filter(!taxon_key %in% run_spp) %>%
   pull(taxon_key)
 
 ```
@@ -294,7 +298,7 @@ spp_to_run <- ssp_list %>%
 # get the cores from your computer.
 # No need for more than 12 cores 
 # Never use all cores so you computer doesn't crash
-cores <- ifelse(detectCores() > 12, 12, detectCores()-3)  
+cores <- ifelse(detectCores() > 12, 12, detectCores()-6)  
 cl <- makeCluster(cores[1])
 registerDoParallel(cl)
 
@@ -308,3 +312,49 @@ gc()
 
 
 ```
+
+# Test runs
+
+Testing results for a taxon to make sure all EEZs are included
+
+```{r test_result, eval = T, echo = T}
+#  Note you need to run firt two chunks
+
+# Load result test
+result_df <- read_csv("~/Data/ocea_nutri_cc/results/600107_per_change.csv")
+
+unique(result_df$esm) #c6gfdl
+
+unique(result_df$ssp) # "ssp26" "ssp85"
+
+summary(result_df)
+```
+
+
+```{r test_result, eval = T, echo = T}
+
+sf_region %>%  
+  st_simplify(preserveTopology = TRUE, dTolerance = 1) %>% # Picaso style map to load faster
+  st_shift_longitude() %>% # Center projection on Pacific Islands
+  rename(eez_id = eezid) %>% # To mathc SAU shapefile
+  left_join(result_df) %>% 
+  ggplot() +
+  geom_sf(
+    aes(
+      fill = per_change_mid
+    )
+  ) + facet_wrap(~ssp, ncol = 1) +
+  scale_fill_gradient2()
+  
+
+
+
+```
+
+
+
+
+
+
+
+	
