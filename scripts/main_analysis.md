@@ -317,7 +317,7 @@ gc()
 
 Testing results for a taxon to make sure all EEZs are included
 
-```{r test_result, eval = T, echo = T}
+```{r test_result_data, eval = T, echo = T}
 #  Note you need to run firt two chunks
 
 # Load result test
